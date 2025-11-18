@@ -18,12 +18,11 @@ AWS + S3
 STEP 3:
 Backend using Node.js or react native
 Database will be supabase and postgress
+Create algorithim
+Make Filter for bad words in username, inappropriate videos,
 
 STEP 4:
 Buy domain and publish on app storage
 
 STEP 5:
 Advertise and sponser micro influencers
-
-STEP 6:
-Wait for billions to roll in
