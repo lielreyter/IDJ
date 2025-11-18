@@ -13,6 +13,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../context/AuthContext';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import { isValidEmail, isValidPassword } from '../utils/validation';
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -25,13 +26,14 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
-    if (!email.includes('@')) {
+    if (!isValidEmail(email)) {
       Alert.alert('Error', 'Please enter a valid email address');
       return;
     }
 
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+    const passwordValidation = isValidPassword(password);
+    if (!passwordValidation.valid) {
+      Alert.alert('Error', passwordValidation.message);
       return;
     }
 
