@@ -12,6 +12,18 @@ AWS for file storage
 STEP 1:
 Create user interface using Java in react Native or expo or flutter
 
+Video Scrolling X
+
+LOGIN:
+Login/Sign Up X
+Integrate Google and Apple into login X
+Setup Actual backend for integration
+Set up DB to check and store the login
+
+
+
+
+
 STEP 2:
 AWS + S3 
 
