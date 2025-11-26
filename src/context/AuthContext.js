@@ -18,6 +18,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     setIsLoading(true);
     try {
+      console.log('🔐 [LOGIN] Attempting login to:', API_URL);
       const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
@@ -26,26 +27,40 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ email, password }),
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
 
       if (data.success) {
         setUser(data.user);
         setToken(data.token);
         setIsLoading(false);
+        console.log('✅ [LOGIN] Login successful');
         return { success: true, user: data.user };
       } else {
         setIsLoading(false);
+        console.log('❌ [LOGIN] Login failed:', data.error);
         return { success: false, error: data.error || 'Login failed' };
       }
     } catch (error) {
       setIsLoading(false);
-      return { success: false, error: error.message || 'Network error. Please check your connection.' };
+      console.error('❌ [LOGIN] Network error:', error.message);
+      let errorMessage = 'Network error. Please check your connection.';
+      
+      if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
+        errorMessage = 'Cannot connect to server. Make sure:\n1. Backend server is running\n2. Both devices are on the same Wi-Fi network\n3. Firewall allows connections';
+      }
+      
+      return { success: false, error: errorMessage };
     }
   };
 
   const signup = async (email, password, username) => {
     setIsLoading(true);
     try {
+      console.log('📝 [SIGNUP] Attempting signup to:', API_URL);
       const response = await fetch(`${API_URL}/auth/signup`, {
         method: 'POST',
         headers: {
@@ -54,20 +69,33 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ email, password, username }),
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
 
       if (data.success) {
         setUser(data.user);
         setToken(data.token);
         setIsLoading(false);
+        console.log('✅ [SIGNUP] Signup successful');
         return { success: true, user: data.user };
       } else {
         setIsLoading(false);
+        console.log('❌ [SIGNUP] Signup failed:', data.error);
         return { success: false, error: data.error || 'Sign up failed' };
       }
     } catch (error) {
       setIsLoading(false);
-      return { success: false, error: error.message || 'Network error. Please check your connection.' };
+      console.error('❌ [SIGNUP] Network error:', error.message);
+      let errorMessage = 'Network error. Please check your connection.';
+      
+      if (error.message.includes('Network request failed') || error.message.includes('Failed to fetch')) {
+        errorMessage = 'Cannot connect to server. Make sure:\n1. Backend server is running\n2. Both devices are on the same Wi-Fi network\n3. Firewall allows connections';
+      }
+      
+      return { success: false, error: errorMessage };
     }
   };
 
