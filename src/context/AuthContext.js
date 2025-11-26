@@ -3,6 +3,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
+import { API_URL } from '../config/api';
 
 // Complete web browser authentication for Google OAuth
 WebBrowser.maybeCompleteAuthSession();
@@ -12,50 +13,61 @@ const AuthContext = createContext({});
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [token, setToken] = useState(null);
 
   const login = async (email, password) => {
     setIsLoading(true);
     try {
-      // TODO: Replace with actual API call to your backend
-      // For now, this is a mock implementation
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      // Mock user data
-      const mockUser = {
-        id: '1',
-        email: email,
-        username: email.split('@')[0],
-      };
-      
-      setUser(mockUser);
-      setIsLoading(false);
-      return { success: true, user: mockUser };
+      const response = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setUser(data.user);
+        setToken(data.token);
+        setIsLoading(false);
+        return { success: true, user: data.user };
+      } else {
+        setIsLoading(false);
+        return { success: false, error: data.error || 'Login failed' };
+      }
     } catch (error) {
       setIsLoading(false);
-      return { success: false, error: error.message };
+      return { success: false, error: error.message || 'Network error. Please check your connection.' };
     }
   };
 
   const signup = async (email, password, username) => {
     setIsLoading(true);
     try {
-      // TODO: Replace with actual API call to your backend
-      // For now, this is a mock implementation
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      
-      // Mock user data
-      const mockUser = {
-        id: '1',
-        email: email,
-        username: username,
-      };
-      
-      setUser(mockUser);
-      setIsLoading(false);
-      return { success: true, user: mockUser };
+      const response = await fetch(`${API_URL}/auth/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password, username }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setUser(data.user);
+        setToken(data.token);
+        setIsLoading(false);
+        return { success: true, user: data.user };
+      } else {
+        setIsLoading(false);
+        return { success: false, error: data.error || 'Sign up failed' };
+      }
     } catch (error) {
       setIsLoading(false);
-      return { success: false, error: error.message };
+      return { success: false, error: error.message || 'Network error. Please check your connection.' };
     }
   };
 
@@ -90,18 +102,38 @@ export const AuthProvider = ({ children }) => {
       const result = await request.promptAsync(discovery);
 
       if (result.type === 'success') {
-        // TODO: Exchange authorization code for tokens and user info with your backend
-        // For now, using mock data
-        const mockUser = {
-          id: 'google_' + Date.now(),
-          email: 'user@gmail.com',
-          username: 'Google User',
-          provider: 'google',
-        };
-        
-        setUser(mockUser);
-        setIsLoading(false);
-        return { success: true, user: mockUser };
+        // Exchange authorization code for user info
+        // Note: In production, you should exchange the code on your backend
+        // For now, we'll send the code to your backend to handle
+        try {
+          const response = await fetch(`${API_URL}/auth/oauth`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              email: 'user@gmail.com', // Replace with actual email from Google
+              username: 'Google User',
+              provider: 'google',
+              providerId: result.params.code,
+            }),
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            setUser(data.user);
+            setToken(data.token);
+            setIsLoading(false);
+            return { success: true, user: data.user };
+          } else {
+            setIsLoading(false);
+            return { success: false, error: data.error || 'Google sign-in failed' };
+          }
+        } catch (error) {
+          setIsLoading(false);
+          return { success: false, error: error.message || 'Failed to complete Google sign-in' };
+        }
       } else {
         setIsLoading(false);
         return { success: false, error: 'Google sign-in was cancelled' };
@@ -127,18 +159,36 @@ export const AuthProvider = ({ children }) => {
         ],
       });
 
-      // TODO: Send credential to your backend for verification
-      // For now, using mock data
-      const mockUser = {
-        id: credential.user,
-        email: credential.email || 'apple@privaterelay.appleid.com',
-        username: credential.fullName?.givenName || 'Apple User',
-        provider: 'apple',
-      };
+      // Send credential to backend for verification
+      try {
+        const response = await fetch(`${API_URL}/auth/oauth`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: credential.email || `apple_${credential.user}@privaterelay.appleid.com`,
+            username: credential.fullName?.givenName || credential.fullName?.familyName || 'Apple User',
+            provider: 'apple',
+            providerId: credential.user,
+          }),
+        });
 
-      setUser(mockUser);
-      setIsLoading(false);
-      return { success: true, user: mockUser };
+        const data = await response.json();
+
+        if (data.success) {
+          setUser(data.user);
+          setToken(data.token);
+          setIsLoading(false);
+          return { success: true, user: data.user };
+        } else {
+          setIsLoading(false);
+          return { success: false, error: data.error || 'Apple sign-in failed' };
+        }
+      } catch (error) {
+        setIsLoading(false);
+        return { success: false, error: error.message || 'Failed to complete Apple sign-in' };
+      }
     } catch (error) {
       setIsLoading(false);
       if (error.code === 'ERR_CANCELED') {
@@ -150,6 +200,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     setUser(null);
+    setToken(null);
   };
 
   return (

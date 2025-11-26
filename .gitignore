@@ -23,3 +23,10 @@ dist/
 *~
 
 plan.txt
+
+# Backend
+backend/.env
+backend/node_modules/
+backend/*.log
+.env
+backend/.env.example
