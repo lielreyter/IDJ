@@ -13,22 +13,24 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../context/AuthContext';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { isValidEmail, isValidPassword } from '../utils/validation';
+import { isEmailOrPhone, isValidPassword } from '../utils/validation';
+import { Feather, FontAwesome } from '@expo/vector-icons';
 
 const LoginScreen = ({ navigation }) => {
-  const [email, setEmail] = useState('');
+  const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const { login, loginWithGoogle, loginWithApple, isLoading } = useAuth();
 
   const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
+    if (!emailOrPhone.trim() || !password.trim()) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
 
-    if (!isValidEmail(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+    const validation = isEmailOrPhone(emailOrPhone);
+    if (!validation.valid) {
+      Alert.alert('Error', 'Please enter a valid email address or phone number');
       return;
     }
 
@@ -38,7 +40,7 @@ const LoginScreen = ({ navigation }) => {
       return;
     }
 
-    const result = await login(email, password);
+    const result = await login(emailOrPhone, password);
     if (!result.success) {
       Alert.alert('Login Failed', result.error || 'Invalid credentials');
     }
@@ -75,7 +77,12 @@ const LoginScreen = ({ navigation }) => {
             onPress={handleGoogleLogin}
             disabled={isLoading}
           >
-            <Text style={styles.oauthButtonText}>🔵 Continue with Google</Text>
+            <View style={styles.oauthContent}>
+              <View style={styles.googleIconCircle}>
+                <FontAwesome name="google" size={16} color="#4285F4" />
+              </View>
+              <Text style={styles.oauthButtonText}>Continue with Google</Text>
+            </View>
           </TouchableOpacity>
 
           {Platform.OS === 'ios' && (
@@ -95,11 +102,11 @@ const LoginScreen = ({ navigation }) => {
           </View>
           <TextInput
             style={styles.input}
-            placeholder="Email"
+            placeholder="Email or Phone Number"
             placeholderTextColor="#666"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
+            value={emailOrPhone}
+            onChangeText={setEmailOrPhone}
+            keyboardType="default"
             autoCapitalize="none"
             autoCorrect={false}
           />
@@ -119,7 +126,11 @@ const LoginScreen = ({ navigation }) => {
               style={styles.eyeButton}
               onPress={() => setShowPassword(!showPassword)}
             >
-              <Text style={styles.eyeIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+              <Feather
+                name={showPassword ? 'eye' : 'eye-off'}
+                size={20}
+                color="#fff"
+              />
             </TouchableOpacity>
           </View>
 
@@ -225,6 +236,24 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  oauthContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  googleIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  googleIconLetter: {
+    color: '#4285F4',
+    fontWeight: '800',
+    fontSize: 16,
   },
   appleButton: {
     width: '100%',

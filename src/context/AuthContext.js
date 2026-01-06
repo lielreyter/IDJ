@@ -4,6 +4,7 @@ import * as AuthSession from 'expo-auth-session';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform } from 'react-native';
 import { API_URL } from '../config/api';
+import { GOOGLE_WEB_CLIENT_ID, GOOGLE_DISCOVERY } from '../config/googleAuth';
 
 // Complete web browser authentication for Google OAuth
 WebBrowser.maybeCompleteAuthSession();
@@ -15,16 +16,23 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [token, setToken] = useState(null);
 
-  const login = async (email, password) => {
+  const login = async (emailOrPhone, password) => {
     setIsLoading(true);
     try {
       console.log('🔐 [LOGIN] Attempting login to:', API_URL);
+      
+      // Determine if input is email or phone
+      const isEmail = emailOrPhone.includes('@');
+      const requestBody = isEmail 
+        ? { email: emailOrPhone, password }
+        : { phone: emailOrPhone, password };
+      
       const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -57,16 +65,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const signup = async (email, password, username) => {
+  const signup = async (emailOrPhone, password, username) => {
     setIsLoading(true);
     try {
       console.log('📝 [SIGNUP] Attempting signup to:', API_URL);
+      
+      // Determine if input is email or phone
+      const isEmail = emailOrPhone.includes('@');
+      const requestBody = isEmail
+        ? { email: emailOrPhone, password, username }
+        : { phone: emailOrPhone, password, username };
+      
       const response = await fetch(`${API_URL}/auth/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password, username }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -102,48 +117,77 @@ export const AuthProvider = ({ children }) => {
   const loginWithGoogle = async () => {
     setIsLoading(true);
     try {
-      // Google OAuth configuration
-      // TODO: Replace with your actual Google OAuth client ID
-      // Get this from: https://console.cloud.google.com/
-      // For web client ID (works with Expo Go)
-      const clientId = 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com';
-      
+      // Check if Google Client ID is configured
+      if (GOOGLE_WEB_CLIENT_ID.includes('YOUR_GOOGLE_WEB_CLIENT_ID')) {
+        setIsLoading(false);
+        return { 
+          success: false, 
+          error: 'Google Sign-In is not configured. Please set up your Google OAuth Client ID in src/config/googleAuth.js' 
+        };
+      }
+
       const redirectUri = AuthSession.makeRedirectUri({
         scheme: 'idj-app',
         useProxy: true,
       });
 
-      const discovery = {
-        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-        tokenEndpoint: 'https://oauth2.googleapis.com/token',
-        revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
-      };
-
       const request = new AuthSession.AuthRequest({
-        clientId: clientId,
+        clientId: GOOGLE_WEB_CLIENT_ID,
         scopes: ['openid', 'profile', 'email'],
         responseType: AuthSession.ResponseType.Code,
         redirectUri: redirectUri,
         usePKCE: true,
       });
 
-      const result = await request.promptAsync(discovery);
+      const result = await request.promptAsync(GOOGLE_DISCOVERY);
 
       if (result.type === 'success') {
-        // Exchange authorization code for user info
-        // Note: In production, you should exchange the code on your backend
-        // For now, we'll send the code to your backend to handle
+        // Exchange authorization code for access token
         try {
+          const tokenResponse = await fetch(GOOGLE_DISCOVERY.tokenEndpoint, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: new URLSearchParams({
+              code: result.params.code,
+              client_id: GOOGLE_WEB_CLIENT_ID,
+              redirect_uri: redirectUri,
+              grant_type: 'authorization_code',
+            }).toString(),
+          });
+
+          if (!tokenResponse.ok) {
+            throw new Error('Failed to exchange authorization code for token');
+          }
+
+          const tokenData = await tokenResponse.json();
+          const accessToken = tokenData.access_token;
+
+          // Fetch user info from Google
+          const userInfoResponse = await fetch(GOOGLE_DISCOVERY.userInfoEndpoint, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          });
+
+          if (!userInfoResponse.ok) {
+            throw new Error('Failed to fetch user info from Google');
+          }
+
+          const userInfo = await userInfoResponse.json();
+
+          // Send user info to backend
           const response = await fetch(`${API_URL}/auth/oauth`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              email: 'user@gmail.com', // Replace with actual email from Google
-              username: 'Google User',
+              email: userInfo.email,
+              username: userInfo.name || userInfo.given_name || userInfo.email.split('@')[0],
               provider: 'google',
-              providerId: result.params.code,
+              providerId: userInfo.id,
             }),
           });
 
@@ -153,13 +197,16 @@ export const AuthProvider = ({ children }) => {
             setUser(data.user);
             setToken(data.token);
             setIsLoading(false);
+            console.log('✅ [GOOGLE LOGIN] Login successful');
             return { success: true, user: data.user };
           } else {
             setIsLoading(false);
+            console.log('❌ [GOOGLE LOGIN] Login failed:', data.error);
             return { success: false, error: data.error || 'Google sign-in failed' };
           }
         } catch (error) {
           setIsLoading(false);
+          console.error('❌ [GOOGLE LOGIN] Error:', error.message);
           return { success: false, error: error.message || 'Failed to complete Google sign-in' };
         }
       } else {
@@ -168,7 +215,7 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       setIsLoading(false);
-      console.error('Google login error:', error);
+      console.error('❌ [GOOGLE LOGIN] Error:', error);
       return { success: false, error: error.message || 'Failed to sign in with Google' };
     }
   };
@@ -180,6 +227,16 @@ export const AuthProvider = ({ children }) => {
 
     setIsLoading(true);
     try {
+      const isAvailable = await AppleAuthentication.isAvailableAsync();
+      if (!isAvailable) {
+        setIsLoading(false);
+        return {
+          success: false,
+          error:
+            'Apple Sign In is not available in Expo Go. Build a dev client with "npx expo run:ios" or an EAS development build to test.',
+        };
+      }
+
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,

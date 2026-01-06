@@ -14,11 +14,11 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { useAuth } from '../context/AuthContext';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { isValidEmail, isValidPassword } from '../utils/validation';
+import { isEmailOrPhone, isValidPassword } from '../utils/validation';
 
 const SignUpScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
+  const [emailOrPhone, setEmailOrPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -30,7 +30,7 @@ const SignUpScreen = ({ navigation }) => {
   const passwordsDontMatch = password && confirmPassword && password !== confirmPassword;
 
   const handleSignUp = async () => {
-    if (!username.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
+    if (!username.trim() || !emailOrPhone.trim() || !password.trim() || !confirmPassword.trim()) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
@@ -40,8 +40,9 @@ const SignUpScreen = ({ navigation }) => {
       return;
     }
 
-    if (!isValidEmail(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
+    const validation = isEmailOrPhone(emailOrPhone);
+    if (!validation.valid) {
+      Alert.alert('Error', 'Please enter a valid email address or phone number');
       return;
     }
 
@@ -56,7 +57,7 @@ const SignUpScreen = ({ navigation }) => {
       return;
     }
 
-    const result = await signup(email, password, username);
+    const result = await signup(emailOrPhone, password, username);
     if (!result.success) {
       Alert.alert('Sign Up Failed', result.error || 'Could not create account');
     }
@@ -127,11 +128,11 @@ const SignUpScreen = ({ navigation }) => {
 
             <TextInput
               style={styles.input}
-              placeholder="Email"
+              placeholder="Email or Phone Number"
               placeholderTextColor="#666"
-              value={email}
-              onChangeText={setEmail}
-              keyboardType="email-address"
+              value={emailOrPhone}
+              onChangeText={setEmailOrPhone}
+              keyboardType="default"
               autoCapitalize="none"
               autoCorrect={false}
             />

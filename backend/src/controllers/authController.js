@@ -17,40 +17,75 @@ const generateToken = (userId) => {
 // Register new user
 exports.signup = async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, phone, password } = req.body;
+
+    // Validate that either email or phone is provided
+    if (!email && !phone) {
+      return res.status(400).json({
+        success: false,
+        error: 'Either email or phone number is required',
+      });
+    }
+
+    // Normalize phone number (remove non-digits)
+    const normalizedPhone = phone ? phone.replace(/\D/g, '') : null;
 
     // Check if user already exists
     const existingUser = await User.findOne({
-      $or: [{ email }, { username }],
+      $or: [
+        email ? { email } : {},
+        normalizedPhone ? { phone: normalizedPhone } : {},
+        { username },
+      ].filter(obj => Object.keys(obj).length > 0),
     });
 
     if (existingUser) {
+      if (existingUser.email === email) {
+        return res.status(400).json({
+          success: false,
+          error: 'Email already registered',
+        });
+      }
+      if (existingUser.phone === normalizedPhone) {
+        return res.status(400).json({
+          success: false,
+          error: 'Phone number already registered',
+        });
+      }
       return res.status(400).json({
         success: false,
-        error: existingUser.email === email
-          ? 'Email already registered'
-          : 'Username already taken',
+        error: 'Username already taken',
       });
     }
 
     // Create new user
-    const user = await User.create({
+    const userData = {
       username,
-      email,
       password,
       provider: 'local',
-    });
+    };
 
-    // Generate email verification token
-    const verificationToken = user.generateEmailVerificationToken();
-    await user.save({ validateBeforeSave: false });
+    if (email) {
+      userData.email = email;
+    }
+    if (normalizedPhone) {
+      userData.phone = normalizedPhone;
+    }
 
-    // Send verification email
-    try {
-      await sendVerificationEmail(user.email, verificationToken, user.username);
-    } catch (error) {
-      console.error('Error sending verification email:', error);
-      // Don't fail signup if email fails, but log it
+    const user = await User.create(userData);
+
+    // Generate email verification token (only if email provided)
+    if (user.email) {
+      const verificationToken = user.generateEmailVerificationToken();
+      await user.save({ validateBeforeSave: false });
+
+      // Send verification email
+      try {
+        await sendVerificationEmail(user.email, verificationToken, user.username);
+      } catch (error) {
+        console.error('Error sending verification email:', error);
+        // Don't fail signup if email fails, but log it
+      }
     }
 
     // Generate token
@@ -61,11 +96,14 @@ exports.signup = async (req, res) => {
       user: {
         id: user._id,
         username: user.username,
-        email: user.email,
+        email: user.email || null,
+        phone: user.phone || null,
         isEmailVerified: user.isEmailVerified,
       },
       token,
-      message: 'Account created. Please check your email to verify your account.',
+      message: user.email 
+        ? 'Account created. Please check your email to verify your account.'
+        : 'Account created successfully.',
     });
   } catch (error) {
     res.status(400).json({
@@ -78,15 +116,31 @@ exports.signup = async (req, res) => {
 // Login user
 exports.login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, phone, password } = req.body;
 
-    // Find user by email
-    const user = await User.findOne({ email, provider: 'local' });
+    // Validate that either email or phone is provided
+    if (!email && !phone) {
+      return res.status(400).json({
+        success: false,
+        error: 'Either email or phone number is required',
+      });
+    }
+
+    // Normalize phone number if provided
+    const normalizedPhone = phone ? phone.replace(/\D/g, '') : null;
+
+    // Find user by email or phone
+    const user = await User.findOne({
+      $or: [
+        email ? { email, provider: 'local' } : {},
+        normalizedPhone ? { phone: normalizedPhone, provider: 'local' } : {},
+      ].filter(obj => Object.keys(obj).length > 0),
+    });
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        error: 'Invalid email or password',
+        error: 'Invalid credentials',
       });
     }
 
@@ -96,12 +150,12 @@ exports.login = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        error: 'Invalid email or password',
+        error: 'Invalid credentials',
       });
     }
 
-    // Check if email is verified
-    if (!user.isEmailVerified) {
+    // Check if email is verified (only if user has email)
+    if (user.email && !user.isEmailVerified) {
       return res.status(403).json({
         success: false,
         error: 'Please verify your email before logging in. Check your inbox for the verification link.',
@@ -117,7 +171,8 @@ exports.login = async (req, res) => {
       user: {
         id: user._id,
         username: user.username,
-        email: user.email,
+        email: user.email || null,
+        phone: user.phone || null,
         isEmailVerified: user.isEmailVerified,
       },
       token,
@@ -223,14 +278,38 @@ exports.verifyEmail = async (req, res) => {
 // Resend verification email
 exports.resendVerificationEmail = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, phone } = req.body;
 
-    const user = await User.findOne({ email, provider: 'local' });
+    // Validate that either email or phone is provided
+    if (!email && !phone) {
+      return res.status(400).json({
+        success: false,
+        error: 'Either email or phone number is required',
+      });
+    }
+
+    // Normalize phone number if provided
+    const normalizedPhone = phone ? phone.replace(/\D/g, '') : null;
+
+    // Find user by email or phone
+    const user = await User.findOne({
+      $or: [
+        email ? { email, provider: 'local' } : {},
+        normalizedPhone ? { phone: normalizedPhone, provider: 'local' } : {},
+      ].filter(obj => Object.keys(obj).length > 0),
+    });
 
     if (!user) {
       return res.status(404).json({
         success: false,
         error: 'User not found',
+      });
+    }
+
+    if (!user.email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email verification is only available for accounts with email.',
       });
     }
 
@@ -263,15 +342,40 @@ exports.resendVerificationEmail = async (req, res) => {
 // Request password reset
 exports.forgotPassword = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, phone } = req.body;
 
-    const user = await User.findOne({ email, provider: 'local' });
+    // Validate that either email or phone is provided
+    if (!email && !phone) {
+      return res.status(400).json({
+        success: false,
+        error: 'Either email or phone number is required',
+      });
+    }
+
+    // Normalize phone number if provided
+    const normalizedPhone = phone ? phone.replace(/\D/g, '') : null;
+
+    // Find user by email or phone
+    const user = await User.findOne({
+      $or: [
+        email ? { email, provider: 'local' } : {},
+        normalizedPhone ? { phone: normalizedPhone, provider: 'local' } : {},
+      ].filter(obj => Object.keys(obj).length > 0),
+    });
 
     // Don't reveal if user exists or not (security best practice)
     if (!user) {
       return res.json({
         success: true,
-        message: 'If an account with that email exists, a password reset link has been sent.',
+        message: 'If an account with that email or phone exists, a password reset link has been sent.',
+      });
+    }
+
+    // Only send email if user has email
+    if (!user.email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Password reset via email is only available for accounts with email. Please contact support.',
       });
     }
 
@@ -291,7 +395,7 @@ exports.forgotPassword = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'If an account with that email exists, a password reset link has been sent.',
+      message: 'If an account with that email or phone exists, a password reset link has been sent.',
     });
   } catch (error) {
     res.status(500).json({

@@ -12,11 +12,25 @@ const userSchema = new mongoose.Schema({
   },
   email: {
     type: String,
-    required: [true, 'Email is required'],
+    required: function() {
+      // Email required only if phone is not provided
+      return !this.phone;
+    },
     unique: true,
+    sparse: true, // Allows multiple null values
     lowercase: true,
     trim: true,
     match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Please enter a valid email'],
+  },
+  phone: {
+    type: String,
+    required: function() {
+      // Phone required only if email is not provided
+      return !this.email;
+    },
+    unique: true,
+    sparse: true, // Allows multiple null values
+    trim: true,
   },
   password: {
     type: String,

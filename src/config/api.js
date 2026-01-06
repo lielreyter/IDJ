@@ -5,7 +5,9 @@ import { Platform } from 'react-native';
 
 // Your computer's local IP address (update if it changes)
 // Find it with: ipconfig getifaddr en0 (macOS) or ipconfig (Windows)
-const LOCAL_IP = '10.0.1.172';
+// Update this to your machine's current IP (Metro shows it as exp://<IP>:8081)
+// Current detected from Metro output: 10.0.1.162
+const LOCAL_IP = '10.0.1.162';
 const PORT = '3000';
 
 export const API_URL = __DEV__

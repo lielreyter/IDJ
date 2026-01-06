@@ -4,6 +4,29 @@ export const isValidEmail = (email) => {
   return emailRegex.test(email);
 };
 
+// Phone number validation (supports international formats)
+export const isValidPhone = (phone) => {
+  // Remove all non-digit characters for validation
+  const digitsOnly = phone.replace(/\D/g, '');
+  // Check if it's a valid phone number (7-15 digits is standard)
+  return digitsOnly.length >= 7 && digitsOnly.length <= 15;
+};
+
+// Check if input is email or phone
+export const isEmailOrPhone = (input) => {
+  if (!input) return { type: null, valid: false };
+  
+  if (isValidEmail(input)) {
+    return { type: 'email', valid: true };
+  }
+  
+  if (isValidPhone(input)) {
+    return { type: 'phone', valid: true };
+  }
+  
+  return { type: null, valid: false };
+};
+
 // Password validation - must contain:
 // - At least 1 uppercase letter
 // - At least 1 lowercase letter

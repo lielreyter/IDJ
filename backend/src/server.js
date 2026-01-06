@@ -3,6 +3,7 @@ const cors = require('cors');
 require('dotenv').config();
 const connectDB = require('./config/database');
 const authRoutes = require('./routes/authRoutes');
+const videoRoutes = require('./routes/videoRoutes');
 
 const app = express();
 
@@ -16,6 +17,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/videos', videoRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
